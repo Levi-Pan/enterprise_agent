@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>企业制度助手</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css?v=20261015-chat-layout">
+  <script src="/static/app.js?v=20261015-login-fix" defer></script>
+</head>
+<body>
+  <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z"/><path d="m20 2 .5 1.5L22 4l-1.5.5L20 6l-.5-1.5L18 4l1.5-.5Z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 0 1-8 8H4l1.4-4A8 8 0 1 1 20 11.5Z"/><path d="M8 10h8M8 14h5"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5c-3-2-7-2-10-1v15c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1Zm0 0v15"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-5 14 2-16"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></symbol>
+  </svg>
+
+  <section id="auth-view" class="auth-view" aria-labelledby="auth-title">
+    <div class="auth-card">
+      <svg class="icon auth-logo"><use href="#i-spark"/></svg>
+      <h1 id="auth-title">登录企业制度助手</h1>
+      <p>公司知识共享，聊天记录只属于你的账号。</p>
+      <form id="login-form" method="post" action="/auth/login">
+        <label for="login-username">账号</label>
+        <input id="login-username" autocomplete="username" placeholder="账号或邮箱" minlength="3" maxlength="64" pattern="[a-zA-Z0-9_.@-]+" required>
+        <label for="login-password">密码</label>
+        <input id="login-password" type="password" autocomplete="current-password" minlength="8" maxlength="128" placeholder="至少 8 个字符" required>
+        <div id="confirm-password-area" hidden><label for="confirm-password">确认密码</label><input id="confirm-password" type="password" autocomplete="new-password" maxlength="128"></div>
+        <p id="login-status" class="login-status" role="status" aria-live="polite">正在连接服务…</p>
+        <button id="login-submit" class="accent-button" type="submit" disabled>登录</button>
+      </form>
+      <button id="auth-toggle" class="text-button" type="button" hidden>没有账号？创建账号</button>
+    </div>
+  </section>
+
+  <div class="workspace" hidden>
+    <aside id="sidebar" class="sidebar" aria-label="主导航">
+      <a class="brand" href="/"><svg class="icon"><use href="#i-spark"/></svg><strong>企业制度助手</strong></a>
+      
+      <button id="new-chat" class="new-chat"><svg class="icon"><use href="#i-plus"/></svg>新对话</button>
+      <nav class="nav-links">
+        <button class="nav-item active" data-view="chat" aria-current="page"><svg class="icon"><use href="#i-chat"/></svg><span>问答助手</span><span class="nav-indicator"></span></button>
+        <button class="nav-item" data-view="documents"><svg class="icon"><use href="#i-doc"/></svg><span>公司知识库</span></button>
+      </nav>
+      
+      <section class="history-section" aria-label="个人历史对话"><h2>历史对话</h2><p id="history-status" role="status"></p><div id="history-list"></div></section>
+      <div class="sidebar-footer"><div class="account-footer"><span id="account-name"></span><button id="account-logout" class="text-button" type="button">退出</button></div><span id="service-status" class="service-status" role="status"><i></i><span>正在连接</span></span><a href="/docs" target="_blank" rel="noopener"><svg class="icon"><use href="#i-code"/></svg>接口测试<span>↗</span></a></div>
+    </aside>
+
+    <button id="sidebar-backdrop" class="sidebar-backdrop" aria-label="关闭导航" hidden></button>
+    <main class="main">
+      <header class="topbar"><button id="sidebar-toggle" class="icon-button" aria-label="收起导航" aria-controls="sidebar" aria-expanded="true"><svg class="icon"><use href="#i-panel"/></svg></button><span id="breadcrumb-current">问答助手</span></header>
+      <div class="content-layout">
+        <div class="primary-column">
+          <section id="chat-view" class="view chat-view" aria-labelledby="chat-title">
+            
+            <div id="welcome" class="welcome"><svg class="icon"><use href="#i-spark"/></svg><h1 id="chat-title">有什么可以帮你？</h1></div>
+            <div id="conversation" class="conversation" role="log" aria-label="问答记录" aria-live="polite" hidden></div>
+            <form id="chat-form" class="composer-panel">
+              <label class="sr-only" for="question">输入你的问题</label>
+              <textarea id="question" rows="2" placeholder="向企业制度助手提问" required></textarea>
+              <div class="composer-footer"><button class="composer-tool" type="button" data-view="documents"><svg class="icon"><use href="#i-doc"/></svg>公司知识库</button><div class="send-tools"><span>Enter 发送 · Shift + Enter 换行</span><button id="send-button" class="send-button" type="submit" aria-label="发送问题"><svg class="icon"><use href="#i-arrow"/></svg></button></div></div>
+            </form>
+            <p id="knowledge-status" class="chat-disclaimer">正在连接公司知识库…</p>
+          </section>
+
+          <section id="documents-view" class="view documents-view" aria-labelledby="documents-title" hidden>
+            
+            <h1 id="documents-title" class="document-title">公司知识库</h1>
+            <p class="hero-description">查看已导入的公司文档，提问时会检索相关原文。</p>
+            <section class="library-section" aria-label="已导入文档"><div class="library-heading"><h2>已导入文档 <span id="library-count"></span></h2><button id="refresh-library" class="text-button" type="button">刷新</button></div><p id="library-status" role="status"></p><div id="document-list" class="document-list"></div></section>
+            <details id="admin-area" class="admin-area"><summary>管理员 · 导入和管理文档</summary><form id="admin-form" class="admin-form"><label for="admin-token">管理员密钥</label><div class="admin-input-row"><input id="admin-token" type="password" autocomplete="off" placeholder="填写 .env 中的 ADMIN_API_TOKEN" required><button class="soft-button" type="submit">验证</button></div><p id="admin-status" role="status">密钥仅在当前页面内使用。</p></form><div id="admin-session" class="admin-session" hidden><span>已进入管理员模式</span><button id="admin-logout" class="text-button" type="button">退出管理</button></div>
+            <form id="upload-form" hidden>
+              <div id="dropzone" class="dropzone"><span class="upload-orb"><svg class="icon"><use href="#i-upload"/></svg></span><h2>拖入文档，或选择文件</h2><label class="soft-button choose-file" for="document-file">选择 Word 文档 <svg class="icon"><use href="#i-plus"/></svg></label><input class="file-input" id="document-file" type="file" accept=".docx"><span class="file-hint">支持 .docx 格式 · 正文及普通表格</span></div>
+              <div id="selected-file" class="selected-file" hidden><span class="file-icon"><svg class="icon"><use href="#i-doc"/></svg></span><span class="file-description"><strong id="file-name"></strong><small id="file-size"></small></span><button class="text-button" id="remove-file" type="button" aria-label="移除所选文件">移除</button><button id="upload-button" class="accent-button" type="submit">导入知识库 <svg class="icon"><use href="#i-chevron"/></svg></button></div><label class="replace-option"><input id="replace-existing" type="checkbox">替换同名文档（原文及索引会被更新）</label>
+            </form>
+            <p class="preview-note"><svg class="icon"><use href="#i-book"/></svg>导入后保存到本机知识库，重启仍保留。</p>
+            <p id="upload-status" class="upload-status" role="status" aria-live="polite"></p>
+            </details>
+            <section id="preview-panel" class="preview-panel" hidden aria-labelledby="preview-title"><div class="preview-heading"><div><h2 id="preview-title">正文预览 <span id="chunk-count"></span></h2></div><button id="download-preview" class="soft-button small"><svg class="icon"><use href="#i-download"/></svg>下载结果</button></div><label class="search-input"><svg class="icon"><use href="#i-search"/></svg><input id="chunk-search" type="search" placeholder="查找段落中的关键词" aria-label="查找段落"></label><div id="chunk-list" class="chunk-list"></div><p id="no-results" class="empty-search" hidden>没有找到包含该关键词的段落。</p></section>
+          </section>
+        </div>
+
+        
+      </div>
+      
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

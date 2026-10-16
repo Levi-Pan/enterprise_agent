@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.log
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Local development and browser preview artifacts
+work/
+.vscode/
+.env.*
+!.env.example
+*.py[cod]
+.pytest_cache/
