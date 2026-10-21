@@ -81,7 +81,7 @@ def focus_section_sources(question: str, sources: list[dict]) -> list[dict]:
 class DocumentStore:
     """使用短连接和事务保存文档、原文件及段落索引。"""
 
-    def __init__(self, database_path: str):
+    def __init__(self, database_path: str,vector_store=None):
         """
         保存数据库路径，不在构造阶段执行文件写入。
 
@@ -89,6 +89,7 @@ class DocumentStore:
         :return: 无
         """
         self.database_path = database_path
+        self.vector_store = vector_store
 
     @contextmanager
     def connection(self):
@@ -288,15 +289,22 @@ class DocumentStore:
 
     def delete_document(self, document_id: str) -> bool:
         """
-        原子删除文档及索引。
+        删除文档、关键词索引，并清理已启用的向量索引。
 
         :param document_id: 文档标识
-        :return: 是否实际删除了文档
+        :return: 是否实际删除了 SQLite 中的文档
         """
         with self.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             self.remove_chunks(connection, document_id)
-            cursor = connection.execute("DELETE FROM documents WHERE document_id = ?", (document_id,))
+            cursor = connection.execute(
+                "DELETE FROM documents WHERE document_id = ?",
+                (document_id,),
+            )
+
+            if self.vector_store is not None:
+                self.vector_store.delete_document(document_id)
+
             return cursor.rowcount > 0
 
     @staticmethod
@@ -382,3 +390,158 @@ class DocumentStore:
             )
             sources = [self.chunk_metadata(row) for row in rows]
             return focus_section_sources(question, sources)[:limit]
+
+
+    def search_vector(self,question: str,limit: int,vector_store,) -> list[dict]:
+        """
+        批量读取向量命中的知识块，保留检索排序。
+
+        :param question: 用户问题
+        :param limit: 最大返回数量
+        :param vector_store: 向量存储实例
+        :return: 包含正文和来源的知识块列表
+        """
+        hits = vector_store.search(question, limit)
+        if not hits:
+            return []
+
+        placeholders = ", ".join("(?, ?)" for hit in hits)
+        parameters = [value
+            for hit in hits
+            for value in (hit["document_id"], hit["chunk_number"])
+        ]
+
+        with self.connection() as connection:
+            rows = connection.execute(
+                f"""
+                WITH targets(document_id, chunk_number) AS (VALUES {placeholders})
+                SELECT
+                    c.document_id, d.document_name, c.chunk_number,
+                    c.content, c.section_path, c.source_start,
+                    c.source_end, c.source_type, c.table_row
+                FROM chunks c
+                JOIN documents d USING(document_id)
+                JOIN targets t
+                    ON t.document_id = c.document_id
+                    AND t.chunk_number = c.chunk_number
+                """,
+                parameters,
+            )
+            matched_chunks = {
+                (row["document_id"], row["chunk_number"]):
+                    self.chunk_metadata(row)
+                for row in rows
+            }
+
+        sources = []
+        for hit in hits:
+            chunk = matched_chunks.get(
+                (hit["document_id"], hit["chunk_number"])
+            )
+            if chunk is not None:
+                sources.append({
+                    **chunk,
+                    "vector_distance": hit["distance"],
+                })
+
+        return focus_section_sources(question, sources)[:limit]
+
+    def retrieve(self,question:str,limit:int,mode:str,) -> list[dict]:
+        """
+        根据配置选择检索方式，统一返回完整知识块。
+
+        :param question: 用户问题
+        :param limit: 最大返回数量
+        :param mode: keyword 或 vector
+        :return: 包含正文和来源信息的知识块列表
+        """
+        if mode == "keyword":
+            return self.search(question,limit)
+
+        if mode == "vector":
+            if self.vector_store is None:
+                raise RuntimeError("向量检索尚未初始化")
+            return self.search_vector(question,limit,self.vector_store,)
+        raise ValueError(f"不支持的检索方式：{mode}")
+
+
+    def rebuild_document_vector(self, document_id: str) -> None:
+        """
+        使用 SQLite 中的最新正文重建指定文档的向量索引。
+
+        :param document_id: 文档标识
+        :return: 无
+        """
+        if self.vector_store is None:
+            return
+
+        chunks = self.document_chunks(document_id)
+        if not chunks:
+            raise ValueError("文档不存在或没有知识块")
+
+        self.vector_store.delete_document(document_id)
+        self.vector_store.upsert_document(document_id, chunks)
+
+
+    def read_section(self,document_id: str,chunk_number: int,limit: int,) -> dict:
+        """
+        定位知识块，读取同章节中距离最近的若干块。
+
+        :param document_id: 文档标识
+        :param chunk_number: 命中的块编号
+        :param limit: 最大返回数量
+        :return: 来源列表及是否截断
+        """
+        if limit <= 0:
+            raise ValueError("章节读取数量必须大于零")
+
+        source_query = """
+            SELECT
+                c.document_id, d.document_name, c.chunk_number,
+                c.content, c.section_path, c.source_start,
+                c.source_end, c.source_type, c.table_row
+            FROM chunks c
+            JOIN documents d USING(document_id)
+        """
+
+        with self.connection() as connection:
+            anchor = connection.execute(
+                source_query + """
+                    WHERE c.document_id = ? AND c.chunk_number = ?
+                """,
+                (document_id, chunk_number),
+            ).fetchone()
+            if anchor is None:
+                raise ValueError("指定的文档或知识块不存在")
+
+            if not json.loads(anchor["section_path"]):
+                return {
+                    "sources": [self.chunk_metadata(anchor)],
+                    "truncated": False,
+                }
+
+            rows = connection.execute(
+                source_query + """
+                    WHERE c.document_id = ? AND c.section_path = ?
+                    ORDER BY ABS(c.chunk_number - ?), c.chunk_number
+                    LIMIT ?
+                """,
+                (
+                    document_id,
+                    anchor["section_path"],
+                    chunk_number,
+                    limit + 1,
+                ),
+            ).fetchall()
+
+        sources = [
+            self.chunk_metadata(row)
+            for row in rows[:limit]
+        ]
+        return {
+            "sources": sorted(
+                sources,
+                key=lambda chunk: chunk["chunk_number"],
+            ),
+            "truncated": len(rows) > limit,
+        }

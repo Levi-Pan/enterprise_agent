@@ -6,6 +6,7 @@
 # brief : 读取模型配置并检验必要参数
 
 import os
+from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -34,7 +35,8 @@ class Settings(BaseSettings):
     admin_api_token: SecretStr = SecretStr("")
     document_upload_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
     document_xml_max_bytes: int = Field(default=30 * 1024 * 1024, gt=0)
-    retrieval_top_k: int = Field(default=4, ge=1, le=10)
+    retrieval_mode: Literal["keyword", "vector"] = "keyword"
+    retrieval_top_k: int = Field(default=4,ge=1,le=10)
     model_max_output_tokens: int = Field(default=1600, gt=0)
     model_concurrency: int = Field(default=4, ge=1, le=32)
     agent_max_tool_calls: int = Field(default=6, ge=1, le=12)
@@ -44,6 +46,12 @@ class Settings(BaseSettings):
     agent_document_limit: int = Field(default=50, ge=1, le=200)
     agent_history_turns: int = Field(default=4,ge=0,le=10)
     agent_history_chars: int = Field(default=6000,ge=0,le=20000)
+
+    vector_db_path: str = os.path.join(PROJECT_PATH, "data", "chroma")
+    embedding_cache_path: str = os.path.join(PROJECT_PATH, "data", "embedding_models")
+    embedding_model: str = "BAAI/bge-small-zh-v1.5"
+    vector_collection_name: str = "knowledge_bge_small_zh_v1"
+    embedding_batch_size: int = Field(default=16, ge=1, le=128)
 
     agent_instructions: str = (
         "你是企业制度知识库助手，使用工具查询资料后回答。"

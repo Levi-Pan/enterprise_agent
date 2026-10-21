@@ -257,6 +257,20 @@ def import_document(file: UploadFile, request: Request, replace_existing: bool =
         result = request.app.state.document_store.save_document(name, original, chunks, replace_existing)
     except DocumentConflictError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    try:
+        request.app.state.document_store.rebuild_document_vector(
+            result["document_id"]
+        )
+    except Exception as error:
+        logger.error(
+            "文档已保存，但向量索引重建失败：document_id=%s",
+            result["document_id"],
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="文档已保存，但向量索引建立失败，请稍后重新导入同一文档。",
+        ) from error
     logger.info("文档导入完成 document_id=%s chunks=%s duplicate=%s", result["document_id"], result["chunk_count"], result["already_exists"])
     return result
 
@@ -293,8 +307,14 @@ def delete_document(document_id: str, request: Request) -> dict:
     :param request: 当前请求
     :return: 删除结果
     """
-    if not request.app.state.document_store.delete_document(document_id):
-        raise HTTPException(status_code=404, detail="文档不存在或已被删除")
+    try:
+        deleted = request.app.state.document_store.delete_document(document_id)
+    except Exception as error:
+        logger.error("文档删除失败：document_id=%s",document_id,exc_info=True,)
+        raise HTTPException(status_code=503,detail="文档删除未完成，请稍后重试。",) from error
+
+    if not deleted:
+        raise HTTPException(status_code=404,detail="文档不存在或已被删除",)
     logger.info("文档删除完成 document_id=%s", document_id)
     return {"deleted": True}
 
@@ -326,7 +346,14 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
         """
         settings = settings_override or get_settings()
         application.state.settings = settings
-        application.state.document_store = DocumentStore(settings.knowledge_db_path)
+
+        vector_store = None
+        if settings.retrieval_mode == "vector":
+            from document_service.vector_store import VectorStore
+            vector_store = VectorStore(settings)
+            await asyncio.to_thread(vector_store.initialize)
+        application.state.document_store = DocumentStore(settings.knowledge_db_path,vector_store=vector_store,)
+
         application.state.account_store = AccountStore(settings)
         application.state.model_slots = asyncio.Semaphore(settings.model_concurrency)
         await asyncio.to_thread(application.state.account_store.initialize)

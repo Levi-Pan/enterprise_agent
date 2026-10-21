@@ -34,7 +34,7 @@ TOOL_ARGUMENT_MODELS = {
 }
 
 TOOL_DESCRIPTIONS ={
-    "search_knowledge": "根据关键词检索知识库，返回原文和来源编号。",
+    "search_knowledge": "检索知识库，返回相关原文和来源信息。",
     "read_document_section": (
         "根据搜索结果中的document_id和chunk_number,"
         "读取同章节内容；内容可能因长度限制而截断。"
@@ -77,39 +77,13 @@ def execute_knowledge_tool(name:str,raw_arguments:str,store,settings,) -> dict:
 
     if name == "list_documents":
         documents = store.list_documents()
-        return{
-            "documents":documents[:settings.agent_document_limit],
-            "truncated":len(documents) > settings.agent_document_limit,
-        }
+        return{"documents":documents[:settings.agent_document_limit],"truncated":len(documents) > settings.agent_document_limit,}
     
     if name == "search_knowledge":
-        return {
-            "sources": store.search(
-                arguments.query,
-                settings.retrieval_top_k,
-            ),
-        }
-    chunks = store.document_chunks(arguments.document_id)
-    anchor = next(
-        (
-            chunk for chunk in chunks
-            if chunk["chunk_number"] == arguments.chunk_number
-        ),
-        None,
-    )
+        return {"sources": store.retrieve(question=arguments.query,limit=settings.retrieval_top_k,mode=settings.retrieval_mode,),}
     
-    if anchor is None:
-        raise ValueError("指定的文档或知识块不存在")
-    section_path = anchor.get("section_path",[])
-    if section_path:
-        section = [
-            chunk for chunk in chunks
-            if chunk.get("section_path",[]) == section_path
-        ]
-    else:
-        section = [anchor]
-    selected = sorted(section,key=lambda chunk:abs(chunk["chunk_number"] - arguments.chunk_number),)[:settings.agent_section_chunks]
-    return {
-        "sources": sorted(selected,key=lambda chunk:chunk["chunk_number"],),
-        "truncated":len(selected) < len(section),
-    }
+    return store.read_section(
+        document_id=arguments.document_id,
+        chunk_number=arguments.chunk_number,
+        limit=settings.agent_section_chunks,
+    )
